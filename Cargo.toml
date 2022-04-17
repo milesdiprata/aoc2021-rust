@@ -1,0 +1,12 @@
+[package]
+name = "aoc2021-rust"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.56"
+
+[[bin]]
+name = "day1"
+path = "src/day1.rs"
+
