@@ -33,8 +33,8 @@ impl Board {
     }
 
     fn is_winner(&self) -> bool {
-        (0..BOARD_LEN).all(|i| self.get(i, 0).is_marked)
-            || (0..BOARD_LEN).all(|j| self.get(0, j).is_marked)
+        (0..BOARD_LEN).any(|i| (0..BOARD_LEN).all(|j| self.get(i, j).is_marked))
+            || (0..BOARD_LEN).any(|j| (0..BOARD_LEN).all(|i| self.get(i, j).is_marked))
     }
 
     fn update(&mut self, num: u8) -> () {
