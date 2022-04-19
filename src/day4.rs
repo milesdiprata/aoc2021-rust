@@ -6,13 +6,13 @@ extern crate anyhow;
 
 const BOARD_LEN: u8 = 5;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Cell {
     num: u8,
     is_marked: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Board {
     grid: Vec<Cell>,
     num_idxs: collections::HashMap<u8, u8>,
@@ -37,9 +37,16 @@ impl Board {
             || (0..BOARD_LEN).any(|j| (0..BOARD_LEN).all(|i| self.get(i, j).is_marked))
     }
 
-    fn update(&mut self, num: u8) -> () {
+    fn update(self, num: u8) -> Self {
+        let mut grid = self.grid;
+
         if let Some(&idx) = self.num_idxs.get(&num) {
-            self.grid[idx as usize].is_marked = true;
+            grid[idx as usize].is_marked = true;
+        }
+
+        Board {
+            grid,
+            num_idxs: self.num_idxs,
         }
     }
 }
@@ -103,22 +110,60 @@ fn read_boards() -> anyhow::Result<Vec<Board>> {
     Ok(boards)
 }
 
-fn main() -> anyhow::Result<()> {
-    let mut nums = read_nums()?.into_iter();
-    let mut boards = read_boards()?;
+fn part_one(nums: &[u8], mut boards: Vec<Board>) -> anyhow::Result<u32> {
+    let mut nums = nums.iter();
 
     loop {
         match nums.next() {
-            Some(num) => {
-                boards.iter_mut().for_each(|board| board.update(num));
+            Some(&num) => {
+                boards = boards
+                    .into_iter()
+                    .map(|board| board.update(num))
+                    .collect::<Vec<_>>();
+
                 if let Some(winner) = boards.iter().find(|&board| board.is_winner()) {
-                    println!("Winning score: {}", winner.get_score(num));
-                    break;
+                    return Ok(winner.get_score(num));
                 }
             }
-            None => break,
+            None => return Err(anyhow::anyhow!("No winner!")),
         }
     }
+}
+
+fn part_two(nums: &[u8], mut boards: Vec<Board>) -> anyhow::Result<u32> {
+    let mut nums = nums.iter();
+
+    loop {
+        match nums.next() {
+            Some(&num) => {
+                boards = boards
+                    .into_iter()
+                    .map(|board| board.update(num))
+                    .collect::<Vec<_>>();
+
+                let last_winner = boards
+                    .iter()
+                    .cloned()
+                    .filter(|board| board.is_winner())
+                    .last();
+
+                boards.retain(|board| !board.is_winner());
+
+                if boards.is_empty() && last_winner.is_some() {
+                    return Ok(last_winner.unwrap().get_score(num));
+                }
+            }
+            None => return Err(anyhow::anyhow!("No winner!")),
+        }
+    }
+}
+
+fn main() -> anyhow::Result<()> {
+    let nums = read_nums()?;
+    let boards = read_boards()?;
+
+    println!("Part one {}", part_one(&nums, boards.clone())?);
+    println!("Part two {}", part_two(&nums, boards)?);
 
     Ok(())
 }
