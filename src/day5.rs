@@ -8,8 +8,8 @@ extern crate anyhow;
 use aoc2021_rust::util;
 
 struct Line {
-    x: (usize, usize),
-    y: (usize, usize),
+    x: (isize, isize),
+    y: (isize, isize),
 }
 
 impl str::FromStr for Line {
@@ -45,35 +45,46 @@ impl cmp::PartialEq for Line {
 }
 
 impl Line {
-    fn to_coords(&self) -> Option<Vec<(usize, usize)>> {
+    fn to_coords(&self, parse_diagonal: bool) -> Option<Vec<(isize, isize)>> {
         if self.x.0 == self.x.1 {
             Some(
                 (cmp::min(self.y.0, self.y.1)..=cmp::max(self.y.0, self.y.1))
                     .map(|y| (self.x.0, y))
-                    .collect::<Vec<_>>(),
+                    .collect(),
             )
         } else if self.y.0 == self.y.1 {
             Some(
                 (cmp::min(self.x.0, self.x.1)..=cmp::max(self.x.0, self.x.1))
                     .map(|x| (x, self.y.0))
-                    .collect::<Vec<_>>(),
+                    .collect(),
             )
-        } else if self.x.0 == self.x.1 && self.y.0 == self.y.1 {
-            todo!()
-        } else if self.x.0 == self.y.1 && self.x.1 == self.y.0 {
-            todo!()
+        } else if parse_diagonal && ((self.y.1 - self.y.0) / (self.x.1 - self.x.0)).abs() == 1 {
+            Some(
+                Self::get_diagonal_coords((self.x.0, self.x.1))
+                    .into_iter()
+                    .zip(Self::get_diagonal_coords((self.y.0, self.y.1)).into_iter())
+                    .collect(),
+            )
         } else {
             None
         }
     }
+
+    fn get_diagonal_coords(dir: (isize, isize)) -> Vec<isize> {
+        let is_increasing = dir.0 < dir.1;
+
+        (0..=(dir.1 - dir.0).abs())
+            .map(|i| if is_increasing { dir.0 + i } else { dir.0 - i })
+            .collect()
+    }
 }
 
 fn part_one(lines: &[Line]) -> anyhow::Result<usize> {
-    let mut coord_count = collections::HashMap::<(usize, usize), usize>::new();
+    let mut coord_count = collections::HashMap::<(isize, isize), usize>::new();
 
     lines
         .iter()
-        .flat_map(|line| line.to_coords())
+        .flat_map(|line| line.to_coords(false))
         .flatten()
         .for_each(|coord| *coord_count.entry(coord).or_insert(0) += 1);
 
@@ -85,7 +96,19 @@ fn part_one(lines: &[Line]) -> anyhow::Result<usize> {
 }
 
 fn part_two(lines: &[Line]) -> anyhow::Result<usize> {
-    todo!()
+    let mut coord_count = collections::HashMap::<(isize, isize), usize>::new();
+
+    lines
+        .iter()
+        .flat_map(|line| line.to_coords(true))
+        .flatten()
+        .for_each(|coord| *coord_count.entry(coord).or_insert(0) += 1);
+
+    Ok(coord_count
+        .into_iter()
+        .filter(|&(_, count)| count > 1)
+        .collect::<Vec<_>>()
+        .len())
 }
 
 fn main() -> anyhow::Result<()> {
