@@ -26,8 +26,18 @@ fn part_one(crabs: &Crabs) -> Option<usize> {
         .min()
 }
 
-fn part_two(crabs: &Crabs) -> anyhow::Result<usize> {
-    todo!()
+fn part_two(crabs: &Crabs) -> Option<usize> {
+    let max_pos = *crabs.0.iter().max()?;
+
+    (0..=max_pos)
+        .map(|pos| {
+            crabs
+                .0
+                .iter()
+                .map(|crab| (1..=(pos - crab).abs() as usize).sum::<usize>())
+                .sum()
+        })
+        .min()
 }
 
 fn main() -> anyhow::Result<()> {
@@ -42,7 +52,10 @@ fn main() -> anyhow::Result<()> {
         part_one(&crabs).ok_or_else(|| anyhow::anyhow!("No answer found!"))?
     );
 
-    // println!("Part two: {}", part_two(&crabs)?);
+    println!(
+        "Part two: {}",
+        part_two(&crabs).ok_or_else(|| anyhow::anyhow!("No answer found!"))?
+    );
 
     Ok(())
 }
