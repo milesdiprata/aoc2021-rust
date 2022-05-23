@@ -1,10 +1,9 @@
+use std::env;
 use std::str;
 
 extern crate anyhow;
 
-use aoc2021_rust::util;
-
-struct Crabs(Vec<usize>);
+struct Crabs(Vec<isize>);
 
 impl str::FromStr for Crabs {
     type Err = anyhow::Error;
@@ -19,8 +18,12 @@ impl str::FromStr for Crabs {
     }
 }
 
-fn part_one(crabs: &Crabs) -> anyhow::Result<usize> {
-    todo!()
+fn part_one(crabs: &Crabs) -> Option<usize> {
+    let max_pos = *crabs.0.iter().max()?;
+
+    (0..=max_pos)
+        .map(|pos| crabs.0.iter().map(|crab| (pos - crab).abs() as usize).sum())
+        .min()
 }
 
 fn part_two(crabs: &Crabs) -> anyhow::Result<usize> {
@@ -28,12 +31,18 @@ fn part_two(crabs: &Crabs) -> anyhow::Result<usize> {
 }
 
 fn main() -> anyhow::Result<()> {
-    let crabs = util::read_input::<Crabs>()?
+    let crabs = env::args()
+        .collect::<Vec<_>>()
         .pop()
-        .ok_or_else(|| anyhow::anyhow!("Unexpected empty set of crab positions!"))?;
+        .ok_or_else(|| anyhow::anyhow!("Unexpected empty set of crab positions!"))?
+        .parse::<Crabs>()?;
 
-    println!("Part one: {}", part_one(&crabs)?);
-    println!("Part two: {}", part_two(&crabs)?);
+    println!(
+        "Part one: {}",
+        part_one(&crabs).ok_or_else(|| anyhow::anyhow!("No answer found!"))?
+    );
+
+    // println!("Part two: {}", part_two(&crabs)?);
 
     Ok(())
 }
