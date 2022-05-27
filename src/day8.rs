@@ -1,5 +1,4 @@
 use std::collections;
-use std::io::{self, BufRead};
 use std::str;
 
 extern crate anyhow;
@@ -8,21 +7,8 @@ extern crate aoc2021_rust;
 
 use aoc2021_rust::util;
 
-const SIGNAL_LEN: usize = 7;
-const DIGS_LEN: usize = 10;
-
-const SEVEN_SEG_DIGS: [[u8; SIGNAL_LEN]; DIGS_LEN] = [
-    // a, b, c, d, e, f, g
-    [1, 1, 1, 0, 1, 1, 1], // 0
-    [0, 0, 1, 0, 0, 1, 0], // 1
-    [1, 0, 1, 1, 1, 0, 1], // 2
-    [1, 0, 1, 1, 0, 1, 1], // 3
-    [0, 1, 1, 1, 0, 1, 0], // 4
-    [1, 1, 0, 1, 0, 1, 1], // 5
-    [1, 1, 0, 1, 1, 1, 1], // 6
-    [1, 0, 1, 0, 0, 1, 0], // 7
-    [1, 1, 1, 1, 1, 1, 1], // 8
-    [1, 1, 1, 1, 0, 1, 1], // 9
+const SEVEN_SEG_DIGS: [&str; 10] = [
+    "abcefg", "cf", "acdeg", "acdfg", "bcdf", "abdfg", "abdefg", "acf", "abcdefg", "abcdfg",
 ];
 
 struct Sig {
@@ -62,48 +48,83 @@ impl str::FromStr for Sig {
     }
 }
 
-fn sig_len(sig: usize) -> Option<usize> {
-    if sig >= DIGS_LEN {
-        return None;
-    }
+fn part_one(sigs: &[Sig]) -> usize {
+    let unique_dig_sig_lens = collections::HashSet::from([
+        SEVEN_SEG_DIGS[1].len(),
+        SEVEN_SEG_DIGS[4].len(),
+        SEVEN_SEG_DIGS[7].len(),
+        SEVEN_SEG_DIGS[8].len(),
+    ]);
 
-    Some(
-        SEVEN_SEG_DIGS[sig]
-            .iter()
-            .filter(|&&sig| sig == 1)
-            .collect::<Vec<_>>()
-            .len(),
-    )
-}
-
-fn part_one(sigs: &[Sig]) -> Option<usize> {
-    let unique_dig_sig_lens =
-        collections::HashSet::from([sig_len(1)?, sig_len(4)?, sig_len(7)?, sig_len(8)?]);
-
-    let num_unique_digs = sigs
-        .iter()
+    sigs.iter()
         .flat_map(|sig| {
             sig.output
                 .iter()
                 .filter(|&output| unique_dig_sig_lens.contains(&output.len()))
         })
         .collect::<Vec<_>>()
-        .len();
-
-    Some(num_unique_digs)
+        .len()
 }
 
 fn part_two(sigs: &[Sig]) -> usize {
-    todo!()
+    let sig_freqs = get_sig_freq(&SEVEN_SEG_DIGS);
+
+    let mut dig_scores = collections::HashMap::new();
+
+    SEVEN_SEG_DIGS.iter().enumerate().for_each(|(no, &dig)| {
+        dig.chars()
+            .for_each(|c| *dig_scores.entry(no as u8).or_insert(0) += sig_freqs[&c])
+    });
+
+    // Coincidentally, the score of each digit following the above frequency-
+    // based approach yields a unique value among all the digits... Use this
+    // score to uniquely match the scrambled digits following the same
+    // frequency-based scoring approach for the scrambled signals.
+
+    let digs = dig_scores
+        .into_iter()
+        .map(|(dig, score)| (score, dig))
+        .collect::<collections::HashMap<_, _>>();
+
+    sigs.iter()
+        .map(|sig| {
+            let scrambled_sig_freqs = get_sig_freq(
+                &sig.patterns
+                    .iter()
+                    .map(|pattern| pattern.as_str())
+                    .collect::<Vec<_>>(),
+            );
+
+            let scrambled_digs = sig
+                .output
+                .iter()
+                .map(|dig| dig.chars().map(|c| scrambled_sig_freqs[&c]).sum::<usize>())
+                .map(|scrambled_score| digs[&scrambled_score])
+                .collect::<Vec<_>>();
+
+            (scrambled_digs[0] as usize * 1000)
+                + (scrambled_digs[1] as usize * 100)
+                + (scrambled_digs[2] as usize * 10)
+                + scrambled_digs[3] as usize
+        })
+        .sum()
+}
+
+fn get_sig_freq(patterns: &[&str]) -> collections::HashMap<char, usize> {
+    let mut freqs = collections::HashMap::new();
+
+    patterns.iter().for_each(|&dig| {
+        dig.chars().for_each(|c| *freqs.entry(c).or_insert(0) += 1);
+    });
+
+    freqs
 }
 
 fn main() -> anyhow::Result<()> {
     let sigs = util::read_input::<Sig>()?;
 
-    println!(
-        "Part one: {}",
-        part_one(&sigs).ok_or_else(|| anyhow::anyhow!("No answer found!"))?
-    );
+    println!("Part one: {}", part_one(&sigs));
+    println!("Part two: {}", part_two(&sigs));
 
     Ok(())
 }
