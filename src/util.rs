@@ -10,12 +10,8 @@ pub fn read_input<T: str::FromStr>() -> anyhow::Result<Vec<T>> {
     let mut lines = stdin.lock().lines();
     let mut input = vec![];
 
-    loop {
-        if let Some(Ok(Ok(line))) = lines.next().map(|line| line.map(|line| line.parse::<T>())) {
-            input.push(line);
-        } else {
-            break;
-        }
+    while let Some(Ok(Ok(line))) = lines.next().map(|line| line.map(|line| line.parse::<T>())) {
+        input.push(line);
     }
 
     Ok(input)
