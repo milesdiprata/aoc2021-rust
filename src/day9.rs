@@ -50,14 +50,14 @@ fn get_adj_heights(height: (usize, usize), max_i: usize, max_j: usize) -> Vec<(u
     adj_heights
 }
 
-fn part_one(heights: &[Vec<u32>]) -> usize {
+fn get_low_points(heights: &[Vec<u32>]) -> Vec<(usize, usize)> {
     let max_i = heights.len();
     let max_j = heights[0].len();
 
     let mut to_visit = vec![];
-    let mut visited = collections::HashSet::<(usize, usize)>::new();
+    let mut visited = collections::HashSet::new();
 
-    let mut risk_level = 0usize;
+    let mut low_points = vec![];
 
     let start = (0, 0);
 
@@ -81,22 +81,72 @@ fn part_one(heights: &[Vec<u32>]) -> usize {
             });
 
         if low_point {
-            risk_level += heights[height.0][height.1] as usize + 1;
+            low_points.push(height);
         }
     }
 
-    risk_level
+    low_points
+}
+
+fn part_one(heights: &[Vec<u32>]) -> usize {
+    get_low_points(heights)
+        .iter()
+        .map(|height| heights[height.0][height.1])
+        .map(|low_point| low_point + 1)
+        .map(|risk_lvl| risk_lvl as usize)
+        .sum()
 }
 
 fn part_two(heights: &[Vec<u32>]) -> usize {
-    todo!()
+    let max_i = heights.len();
+    let max_j = heights[0].len();
+
+    let low_points = get_low_points(heights);
+    let mut basins = collections::BinaryHeap::new();
+
+    low_points.iter().for_each(|&start| {
+        let mut to_visit = vec![];
+        let mut visited = collections::HashSet::new();
+
+        let mut size = 0usize;
+
+        to_visit.push(start);
+        visited.insert(start);
+
+        while let Some(height) = to_visit.pop() {
+            if heights[height.0][height.1] == 9 {
+                continue;
+            }
+
+            size += 1;
+
+            get_adj_heights(height, max_i, max_j)
+                .iter()
+                .for_each(|&adj| {
+                    if heights[height.0][height.1] < heights[adj.0][adj.1]
+                        && !visited.contains(&adj)
+                    {
+                        to_visit.push(adj);
+                        visited.insert(adj);
+                    }
+                });
+        }
+
+        basins.push(size);
+    });
+
+    if basins.len() < 3 {
+        return 0;
+    }
+
+    (0..3).map(|_| basins.pop().unwrap()).product()
 }
 
 fn main() -> anyhow::Result<()> {
     let heights = read_heights()?;
 
     println!("Part one: {}", part_one(&heights));
-    // println!("Part two: {}", part_two(&heights));
+    println!("Part two: {}", part_two(&heights));
 
     Ok(())
 }
