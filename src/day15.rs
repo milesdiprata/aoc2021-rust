@@ -5,6 +5,9 @@ use std::{
 
 extern crate anyhow;
 
+const EXTENSION_FACTOR: usize = 5;
+const MAX_RISK_LVL: u8 = 9;
+
 struct ChitonCave(Vec<Vec<u8>>);
 
 #[derive(PartialEq, Eq)]
@@ -14,7 +17,7 @@ struct Node {
 }
 
 impl ChitonCave {
-    pub fn read() -> anyhow::Result<Self> {
+    fn read() -> anyhow::Result<Self> {
         let stdin = io::stdin();
         let mut lines = stdin.lock().lines();
 
@@ -39,11 +42,48 @@ impl ChitonCave {
         Ok(Self(cave))
     }
 
-    pub fn find_exit_a_star(&self, start: (usize, usize), end: (usize, usize)) -> usize {
+    fn to_extended(&self) -> Self {
+        let len = self.0.len();
+        let new_len = EXTENSION_FACTOR * len;
+
+        let new_cave = (0..new_len)
+            .map(|i| {
+                (0..new_len)
+                    .map(move |j| self.0[i % len][j % len] as usize + ((i / len) + (j / len)))
+                    .map(|risk_lvl| risk_lvl - 1)
+                    .map(|risk_lvl| risk_lvl % MAX_RISK_LVL as usize)
+                    .map(|risk_lvl| risk_lvl + 1)
+                    .map(|risk_lvl| risk_lvl as u8)
+                    .collect()
+            })
+            .collect();
+
+        Self(new_cave)
+    }
+
+    fn get_adj(&self, (x, y): (usize, usize)) -> Vec<(usize, usize)> {
+        let len = self.0.len();
+
+        (-1..=1)
+            .flat_map(|i| (-1..=1).map(move |j| (i, j)))
+            .map(|(i, j)| (i as isize, j as isize))
+            .filter(|&(i, j)| i.abs() != j.abs())
+            .map(|(i, j)| (x as isize + i, y as isize + j))
+            .filter(|&(i, j)| i >= 0 && i < len as isize && j >= 0 && j < len as isize)
+            .map(|(i, j)| (i as usize, j as usize))
+            .collect()
+    }
+
+    fn get_h_score(point: (usize, usize), end: (usize, usize)) -> usize {
+        (end.0 - point.0) + (end.1 - point.1)
+    }
+
+    fn find_exit_a_star(&self, start: (usize, usize), end: (usize, usize)) -> usize {
+        let len = self.0.len();
+
         let mut g_score = collections::HashMap::new();
         let mut f_score = collections::HashMap::new();
 
-        let len = self.0[0].len();
         (0..len)
             .flat_map(|i| (0..len).map(move |j| (i, j)))
             .for_each(|point| {
@@ -68,42 +108,25 @@ impl ChitonCave {
                 break;
             }
 
-            Self::get_adj(node.0.point, len)
-                .into_iter()
-                .for_each(|adj| {
-                    let tentative_g_score = g_score[&node.0.point] + self.0[adj.0][adj.1] as usize;
+            self.get_adj(node.0.point).into_iter().for_each(|adj| {
+                let tentative_g_score = g_score[&node.0.point] + self.0[adj.0][adj.1] as usize;
 
-                    if tentative_g_score < g_score[&adj] {
-                        g_score.insert(adj, tentative_g_score);
-                        f_score.insert(adj, tentative_g_score + Self::get_h_score(adj, end));
+                if tentative_g_score < g_score[&adj] {
+                    g_score.insert(adj, tentative_g_score);
+                    f_score.insert(adj, tentative_g_score + Self::get_h_score(adj, end));
 
-                        if !visited.contains(&adj) {
-                            visited.insert(adj);
-                            frontier.push(cmp::Reverse(Node {
-                                point: adj,
-                                score: f_score[&adj],
-                            }));
-                        }
+                    if !visited.contains(&adj) {
+                        visited.insert(adj);
+                        frontier.push(cmp::Reverse(Node {
+                            point: adj,
+                            score: f_score[&adj],
+                        }));
                     }
-                });
+                }
+            });
         }
 
         g_score[&end]
-    }
-
-    fn get_adj((x, y): (usize, usize), len: usize) -> Vec<(usize, usize)> {
-        (-1..=1)
-            .flat_map(|i| (-1..=1).map(move |j| (i, j)))
-            .map(|(i, j)| (i as isize, j as isize))
-            .filter(|&(i, j)| i.abs() != j.abs())
-            .map(|(i, j)| (x as isize + i, y as isize + j))
-            .filter(|&(i, j)| i >= 0 && i < len as isize && j >= 0 && j < len as isize)
-            .map(|(i, j)| (i as usize, j as usize))
-            .collect()
-    }
-
-    fn get_h_score(point: (usize, usize), end: (usize, usize)) -> usize {
-        (end.0 - point.0) + (end.1 - point.1)
     }
 }
 
@@ -120,15 +143,20 @@ impl Ord for Node {
 }
 
 fn part_one(cave: &ChitonCave) -> usize {
-    let len = cave.0[0].len() - 1;
+    let end = cave.0.len() - 1;
+    cave.find_exit_a_star((0, 0), (end, end))
+}
 
-    cave.find_exit_a_star((0, 0), (len, len))
+fn part_two(cave: ChitonCave) -> usize {
+    let end = (cave.0.len() * EXTENSION_FACTOR) - 1;
+    cave.to_extended().find_exit_a_star((0, 0), (end, end))
 }
 
 fn main() -> anyhow::Result<()> {
     let cave = ChitonCave::read()?;
 
     println!("Part one: {}", part_one(&cave));
+    println!("Part two: {}", part_two(cave));
 
     Ok(())
 }
