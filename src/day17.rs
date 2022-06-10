@@ -1,11 +1,16 @@
 extern crate anyhow;
 
+use std::cmp;
 use std::io::{self, BufRead};
 use std::ops;
 
 struct Area {
     x_rng: ops::RangeInclusive<isize>,
     y_rng: ops::RangeInclusive<isize>,
+    x_min: isize,
+    x_max: isize,
+    y_min: isize,
+    y_max: isize,
 }
 
 impl Area {
@@ -46,14 +51,30 @@ impl Area {
                 .ok_or_else(|| anyhow::anyhow!("Missing y-direction target range upper bound!"))?
                 .parse()?;
 
-        Ok(Area { x_rng, y_rng })
+        let (x_min, x_max) = (x_rng.clone().min().unwrap(), x_rng.clone().max().unwrap());
+        let (y_min, y_max) = (y_rng.clone().min().unwrap(), y_rng.clone().max().unwrap());
+
+        Ok(Area {
+            x_rng,
+            y_rng,
+            x_min,
+            x_max,
+            y_min,
+            y_max,
+        })
     }
 }
 
-fn trick_shot(mut vel: (isize, isize), tgt_area: &Area) -> bool {
+fn trick_shot(mut vel: (isize, isize), area: &Area) -> bool {
     let mut pos = (0, 0);
 
-    while !tgt_area.x_rng.contains(&pos.0) || !tgt_area.y_rng.contains(&pos.1) {
+    while !area.x_rng.contains(&pos.0) || !area.y_rng.contains(&pos.1) {
+        if pos.0 > area.x_max
+            || (vel.0 == 0 && (!area.x_rng.contains(&pos.0) || pos.1 < area.y_min))
+        {
+            return false;
+        }
+
         pos.0 += vel.0;
         pos.1 += vel.1;
 
@@ -64,30 +85,37 @@ fn trick_shot(mut vel: (isize, isize), tgt_area: &Area) -> bool {
         }
 
         vel.1 -= 1;
-
-        if pos.1 < *tgt_area.y_rng.start() {
-            return false;
-        }
     }
 
     true
 }
 
 fn part_one(area: &Area) -> Option<isize> {
-    let y_tgt_min = area.y_rng.clone().min()?;
-    let y_vel = y_tgt_min.abs() - 1;
+    let y_vel = area.y_min.abs() - 1;
     let y_max = y_vel * (y_vel + 1) / 2;
 
     Some(y_max)
+}
+
+fn part_two(area: &Area) -> usize {
+    let y_abs_max = cmp::max(area.y_min.abs(), area.y_max.abs());
+
+    (0..=area.x_max)
+        .flat_map(|x_vel| (-y_abs_max..=y_abs_max).map(move |y_vel| (x_vel, y_vel)))
+        .filter(|&vel| trick_shot(vel, area))
+        .collect::<Vec<_>>()
+        .len()
 }
 
 fn main() -> anyhow::Result<()> {
     let area = Area::read()?;
 
     println!(
-        "{}",
+        "Part one: {}",
         part_one(&area).ok_or_else(|| anyhow::anyhow!("No answer found!"))?
     );
+
+    println!("Part two: {}", part_two(&area));
 
     Ok(())
 }
