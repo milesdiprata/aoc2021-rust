@@ -1,12 +1,8 @@
 extern crate anyhow;
 
 use std::collections;
+use std::convert;
 use std::env;
-
-const LITERAL_VAL_TYPE_ID: u8 = 4;
-
-const TOTAL_LEN_LEN_TYPE_ID: u8 = 0;
-const NUM_SUB_LEN_TYPE_ID: u8 = 1;
 
 const fn hex_to_bin(hex: char) -> Option<&'static str> {
     match hex {
@@ -30,15 +26,61 @@ const fn hex_to_bin(hex: char) -> Option<&'static str> {
     }
 }
 
+enum TypeId {
+    Sum = 0,
+    Product,
+    Min,
+    Max,
+    LiteralVal,
+    GtThan,
+    LeThan,
+    EqTo,
+}
+
+enum LenTypeId {
+    TotalLen = 0,
+    NumSubPkt,
+}
+
 struct Hdr {
     ver: u8,
-    type_id: u8,
+    type_id: TypeId,
 }
 
 struct Pkt {
     hdr: Hdr,
     literal_val: Option<usize>,
     sub_pkts: Option<Vec<Pkt>>,
+}
+
+impl convert::TryFrom<u32> for TypeId {
+    type Error = anyhow::Error;
+
+    fn try_from(val: u32) -> anyhow::Result<Self> {
+        match val {
+            0 => Ok(Self::Sum),
+            1 => Ok(Self::Product),
+            2 => Ok(Self::Min),
+            3 => Ok(Self::Max),
+            4 => Ok(Self::LiteralVal),
+            5 => Ok(Self::GtThan),
+            6 => Ok(Self::LeThan),
+            7 => Ok(Self::EqTo),
+            _ => Err(anyhow::anyhow!("Unknown type ID!")),
+        }
+    }
+}
+
+impl convert::TryFrom<u32> for LenTypeId {
+    type Error = anyhow::Error;
+
+    fn try_from(val: u32) -> anyhow::Result<Self> {
+        match val {
+            0 => Ok(Self::TotalLen),
+            1 => Ok(Self::NumSubPkt),
+            _ => Err(anyhow::anyhow!("Unknown length type ID!")),
+        }
+    }
 }
 
 impl Hdr {
@@ -58,7 +100,7 @@ impl Hdr {
             .map(|_| bin.pop_front())
             .collect::<Option<String>>()
         {
-            Some(type_id) => u8::from_str_radix(&type_id, 2)?,
+            Some(type_id) => TypeId::try_from(u32::from_str_radix(&type_id, 2)?)?,
             None => return Ok(None),
         };
 
@@ -83,7 +125,7 @@ impl Pkt {
         };
 
         match pkt.hdr.type_id {
-            LITERAL_VAL_TYPE_ID => pkt.literal_val = Some(Self::parse_literal_val(bin)?),
+            TypeId::LiteralVal => pkt.literal_val = Some(Self::parse_literal_val(bin)?),
             _ => pkt.sub_pkts = Some(Self::parse_op(bin)?),
         };
 
@@ -107,7 +149,7 @@ impl Pkt {
                 })
                 .collect::<Result<String, _>>()?;
 
-            literal_val.extend(group.chars());
+            literal_val.push_str(&group);
 
             if group_id == '0' {
                 break;
@@ -120,16 +162,16 @@ impl Pkt {
     }
 
     fn parse_op(bin: &mut collections::VecDeque<char>) -> anyhow::Result<Vec<Pkt>> {
-        let len_type_id = bin
-            .pop_front()
-            .ok_or_else(|| anyhow::anyhow!(anyhow::anyhow!("Missing length type ID bit!")))?
-            .to_digit(2)
-            .ok_or_else(|| anyhow::anyhow!("Failed to parse length type ID!"))?;
+        let len_type_id = LenTypeId::try_from(
+            bin.pop_front()
+                .ok_or_else(|| anyhow::anyhow!(anyhow::anyhow!("Missing length type ID bit!")))?
+                .to_digit(2)
+                .ok_or_else(|| anyhow::anyhow!("Failed to parse length type ID!"))?,
+        )?;
 
-        match len_type_id as u8 {
-            TOTAL_LEN_LEN_TYPE_ID => Self::parse_total_len_op(bin),
-            NUM_SUB_LEN_TYPE_ID => Self::parse_num_sub_op(bin),
-            _ => Err(anyhow::anyhow!("Unknown length type ID!")),
+        match len_type_id {
+            LenTypeId::TotalLen => Self::parse_total_len_op(bin),
+            LenTypeId::NumSubPkt => Self::parse_num_sub_op(bin),
         }
     }
 
@@ -180,26 +222,62 @@ impl Pkt {
 
         Ok(pkts)
     }
+
+    fn eval(&self) -> Option<usize> {
+        if let Some(literal_val) = self.literal_val {
+            Some(literal_val)
+        } else if let Some(sub_pkts) = &self.sub_pkts {
+            let sub_pkts_val = sub_pkts
+                .iter()
+                .map(|pkt| pkt.eval())
+                .collect::<Option<Vec<_>>>()?;
+
+            let iter = sub_pkts_val.iter();
+
+            match self.hdr.type_id {
+                TypeId::Sum => Some(iter.sum()),
+                TypeId::Product => Some(iter.product()),
+                TypeId::Min => iter.min().map(|&val| val),
+                TypeId::Max => iter.max().map(|&val| val),
+                TypeId::LiteralVal => None,
+                TypeId::GtThan => match sub_pkts_val[0] > sub_pkts_val[1] {
+                    true => Some(1),
+                    false => Some(0),
+                },
+                TypeId::LeThan => match sub_pkts_val[0] < sub_pkts_val[1] {
+                    true => Some(1),
+                    false => Some(0),
+                },
+                TypeId::EqTo => match sub_pkts_val[0] == sub_pkts_val[1] {
+                    true => Some(1),
+                    false => Some(0),
+                },
+            }
+        } else {
+            None
+        }
+    }
 }
 
-fn part_one(bin: &mut collections::VecDeque<char>) -> anyhow::Result<usize> {
-    let mut pkts = vec![];
-
-    while let Some(pkt) = Pkt::from_bin(bin)? {
-        pkts.push(pkt);
-    }
-
+fn part_one(pkt: &Pkt) -> anyhow::Result<usize> {
+    let mut pkts = vec![pkt];
     let mut sum = 0;
 
     while let Some(pkt) = pkts.pop() {
         sum += pkt.hdr.ver as usize;
 
-        if let Some(sub_pkts) = pkt.sub_pkts {
-            pkts.extend(sub_pkts.into_iter());
+        if let Some(sub_pkts) = &pkt.sub_pkts {
+            pkts.extend(sub_pkts.iter());
         }
     }
 
     Ok(sum)
+}
+
+fn part_two(pkt: &Pkt) -> anyhow::Result<usize> {
+    let val = pkt.eval().unwrap();
+
+    Ok(val)
 }
 
 fn main() -> anyhow::Result<()> {
@@ -216,7 +294,10 @@ fn main() -> anyhow::Result<()> {
         .chars()
         .collect::<collections::VecDeque<_>>();
 
-    println!("Part one: {}", part_one(&mut bin)?);
+    let pkt = Pkt::from_bin(&mut bin)?.ok_or_else(|| anyhow::anyhow!("No packet found!"))?;
+
+    println!("Part one: {}", part_one(&pkt)?);
+    println!("Part two: {}", part_two(&pkt)?);
 
     Ok(())
 }
