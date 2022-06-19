@@ -1,207 +1,341 @@
-extern crate anyhow;
-
 use std::cell::RefCell;
-use std::cmp::Reverse;
-use std::collections::{BinaryHeap, VecDeque};
+use std::collections::VecDeque;
 use std::default::Default;
 use std::fmt;
 use std::ops::Add;
 use std::rc::{Rc, Weak};
 use std::str::FromStr;
 
-use aoc2021_rust::util::read_input;
+use anyhow::{anyhow, Error, Result};
 
-struct SnailFish {
-    nums: Option<BinaryHeap<Reverse<u8>>>,
-    pair: Option<Vec<Rc<RefCell<Self>>>>,
+use aoc2021_rust::util;
+
+struct SnailFishElem {
+    num: Option<u8>,
+    pair: Option<Rc<RefCell<SnailFishNode>>>,
+}
+
+struct SnailFishNode {
+    left: Option<SnailFishElem>,
+    right: Option<SnailFishElem>,
     parent: Weak<RefCell<Self>>,
 }
 
-struct SnailFishNode(Rc<RefCell<SnailFish>>);
+struct SnailFish {
+    pair: Rc<RefCell<SnailFishNode>>,
+}
 
-impl fmt::Debug for SnailFish {
+impl fmt::Debug for SnailFishElem {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(fmt, "[")
-            .and_then(|_| {
-                if let Some(fish) = &self.pair {
-                    let mut sep = "";
+        if let Some(num) = self.num {
+            write!(fmt, "{}", num)
+        } else if let Some(ref pair) = self.pair {
+            write!(fmt, "{:?}", pair.borrow())
+        } else {
+            Ok(())
+        }
+    }
+}
 
-                    fish.iter()
-                        .map(|fish| {
-                            let res = write!(fmt, "{}{:?}", sep, fish.as_ref().borrow());
-                            sep = ",";
+impl Default for SnailFishElem {
+    fn default() -> Self {
+        Self {
+            num: None,
+            pair: None,
+        }
+    }
+}
 
-                            res
-                        })
-                        .collect::<Result<_, _>>()?;
-                }
+impl SnailFishElem {
+    fn from_num(num: u8) -> Self {
+        Self {
+            num: Some(num),
+            pair: None,
+        }
+    }
 
-                Ok(())
-            })
-            .and_then(|_| {
-                if let Some(nums) = &self.nums {
-                    let mut sep = match self.pair.is_some() {
-                        true => ",",
-                        false => "",
-                    };
-
-                    nums.iter()
-                        .map(|num| {
-                            let res = write!(fmt, "{}{:?}", sep, num.0);
-                            sep = ",";
-
-                            res
-                        })
-                        .collect::<Result<(), _>>()?;
-                }
-
-                Ok(())
-            })
-            .and_then(|_| write!(fmt, "]"))
+    fn from_pair(pair: Rc<RefCell<SnailFishNode>>) -> Self {
+        Self {
+            num: None,
+            pair: Some(pair),
+        }
     }
 }
 
 impl fmt::Debug for SnailFishNode {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(fmt, "{:?}", self.0.as_ref().borrow())
+        let mut sep = "";
+
+        write!(fmt, "[")
+            .and_then(|_| match self.left {
+                Some(ref left) => {
+                    let res = write!(fmt, "{}{:?}", sep, left);
+                    sep = ",";
+                    res
+                }
+                None => Ok(()),
+            })
+            .and_then(|_| match self.right {
+                Some(ref right) => {
+                    let res = write!(fmt, "{}{:?}", sep, right);
+                    sep = ",";
+                    res
+                }
+                None => Ok(()),
+            })
+            .and_then(|_| write!(fmt, "]"))
+    }
+}
+
+impl Default for SnailFishNode {
+    fn default() -> Self {
+        Self {
+            left: None,
+            right: None,
+            parent: Weak::new(),
+        }
+    }
+}
+
+impl SnailFishNode {
+    fn with_left(self, left: Self) -> Self {
+        let elem = SnailFishElem::from_pair(Rc::new(RefCell::new(left)));
+
+        let left = match self.left {
+            Some(left) => {
+                let mut new_left = SnailFishNode::default();
+                new_left.left = Some(left);
+                new_left.right = Some(elem);
+
+                SnailFishElem::from_pair(Rc::new(RefCell::new(new_left)))
+            }
+            None => elem,
+        };
+
+        Self {
+            left: Some(left),
+            right: self.right,
+            parent: self.parent,
+        }
+    }
+
+    fn with_right(self, right: Self) -> Self {
+        let elem = SnailFishElem::from_pair(Rc::new(RefCell::new(right)));
+
+        let right = match self.right {
+            Some(right) => {
+                let mut new_right = SnailFishNode::default();
+                new_right.left = Some(right);
+                new_right.right = Some(elem);
+
+                SnailFishElem::from_pair(Rc::new(RefCell::new(new_right)))
+            }
+            None => elem,
+        };
+
+        Self {
+            left: self.left,
+            right: Some(right),
+            parent: self.parent,
+        }
+    }
+
+    fn with_parent(self, parent: Weak<RefCell<Self>>) -> Self {
+        Self {
+            left: self.left,
+            right: self.right,
+            parent,
+        }
+    }
+
+    fn reduce(self, depth: usize) -> Result<Self> {
+        if depth == 4 {
+            return self.explode()?.reduce(depth + 1);
+        }
+
+        // if let Some(ref num) = self.num {
+        //     if let Some(&num) = num.iter().find(|&&num| num == 10) {
+        //         return self.split(num).reduce(depth + 1);
+        //     }
+        // }
+
+        Ok(self)
+    }
+
+    fn explode(self) -> Result<Self> {
+        let parent = self
+            .parent
+            .upgrade()
+            .ok_or_else(|| anyhow!("Parent fish was dropped!"))?;
+
+        todo!()
+    }
+
+    fn split(self, num: u8) -> Self {
+        todo!()
+    }
+}
+
+impl fmt::Debug for SnailFish {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(fmt, "{:?}", self.pair.borrow())
+    }
+}
+
+impl FromStr for SnailFish {
+    type Err = Error;
+
+    fn from_str(input: &str) -> Result<Self> {
+        Self::from_queue(None, &mut input.chars().collect())
     }
 }
 
 impl Default for SnailFish {
     fn default() -> Self {
         Self {
-            nums: None,
-            pair: None,
-            parent: Weak::new(),
+            pair: Rc::default(),
         }
+    }
+}
+
+impl Add for SnailFish {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        let fish = Self::default();
+
+        let lhs = self.with_parent(&fish);
+        let rhs = rhs.with_parent(&fish);
+
+        fish.with_left(lhs).with_right(rhs)
     }
 }
 
 impl SnailFish {
-    fn new(parent: Weak<RefCell<SnailFish>>) -> Self {
+    fn new(pair: SnailFishNode) -> Self {
         Self {
-            nums: None,
-            pair: None,
-            parent,
+            pair: Rc::new(RefCell::new(pair)),
         }
     }
-}
 
-impl FromStr for SnailFishNode {
-    type Err = anyhow::Error;
-
-    fn from_str(input: &str) -> anyhow::Result<Self> {
-        Self::from_queue(Weak::new(), &mut input.chars().collect())
-    }
-}
-
-impl Add for SnailFishNode {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self {
-        let pair = vec![rhs.0, self.0];
-        let fish = Self::default();
-        fish.0.borrow_mut().pair = Some(pair);
-
-        fish
-    }
-}
-
-impl Default for SnailFishNode {
-    fn default() -> Self {
-        Self(Rc::new(RefCell::new(SnailFish::default())))
-    }
-}
-
-impl SnailFishNode {
-    fn new(parent: Weak<RefCell<SnailFish>>) -> Self {
-        Self(Rc::new(RefCell::new(SnailFish::new(parent))))
+    fn with_left(self, left: Self) -> Self {
+        Self::new(self.pair.take().with_left(left.pair.take()))
     }
 
-    fn from_queue(
-        parent: Weak<RefCell<SnailFish>>,
-        input: &mut VecDeque<char>,
-    ) -> anyhow::Result<Self> {
-        let fish = Self::new(parent);
+    fn with_right(self, right: Self) -> Self {
+        Self::new(self.pair.take().with_right(right.pair.take()))
+    }
+
+    fn with_parent(self, parent: &Self) -> Self {
+        Self::new(self.pair.take().with_parent(Rc::downgrade(&parent.pair)))
+    }
+
+    fn from_queue(parent: Option<&Self>, input: &mut VecDeque<char>) -> Result<Self> {
+        let fish = match parent {
+            Some(parent) => Self::default().with_parent(parent),
+            None => Self::default(),
+        };
 
         if input
             .pop_front()
-            .ok_or_else(|| anyhow::anyhow!("Unexpected empty snailfish input!"))?
+            .ok_or_else(|| anyhow!("Unexpected empty snailfish input!"))?
             != '['
         {
-            return Err(anyhow::anyhow!("Expected '[' when parsing snailfish!"));
+            return Err(anyhow!("Expected '[' when parsing snailfish!"));
         }
+
+        let mut is_left = true;
 
         while let Some(c) = input.pop_front() {
             if c.is_digit(10) {
-                fish.parse_num(c)?;
+                fish.parse_num(c, is_left)?;
             } else if c == ',' {
+                is_left = false;
                 continue;
             } else if c == '[' {
-                fish.parse_pair(input)?;
+                fish.parse_children(input, is_left)?;
             } else if c == ']' {
                 break;
             } else {
-                return Err(anyhow::anyhow!(
-                    "Unknown character '{}' in snailfish input!",
-                    c
-                ));
+                return Err(anyhow!("Unknown character '{}' in snailfish input!", c));
             }
         }
 
         Ok(fish)
     }
 
-    fn parse_num(&self, num: char) -> anyhow::Result<()> {
-        if self.0.borrow_mut().nums.is_none() {
-            self.0.borrow_mut().nums = Some(BinaryHeap::with_capacity(2));
+    fn parse_num(&self, num: char, is_left: bool) -> Result<()> {
+        let num = num
+            .to_digit(10)
+            .ok_or_else(|| anyhow::anyhow!("Failed to parse snailfish regular number!"))?
+            as u8;
+
+        if is_left && self.pair.borrow().left.is_none() {
+            self.pair.borrow_mut().left = Some(SnailFishElem::default());
+        } else if !is_left && self.pair.borrow().right.is_none() {
+            self.pair.borrow_mut().right = Some(SnailFishElem::default());
         }
 
-        self.0.borrow_mut().nums.as_mut().unwrap().push(Reverse(
-            num.to_digit(10)
-                .ok_or_else(|| anyhow::anyhow!("Failed to parse snailfish regular number!"))?
-                as u8,
-        ));
+        match is_left {
+            true => self.pair.borrow_mut().left.as_mut().unwrap().num = Some(num),
+            false => self.pair.borrow_mut().right.as_mut().unwrap().num = Some(num),
+        };
 
         Ok(())
     }
 
-    fn parse_pair(&self, input: &mut VecDeque<char>) -> anyhow::Result<()> {
-        if self.0.borrow_mut().pair.is_none() {
-            self.0.borrow_mut().pair = Some(Vec::with_capacity(2));
-        }
-
+    fn parse_children(&self, input: &mut VecDeque<char>, is_left: bool) -> Result<()> {
         input.push_front('[');
 
-        self.0
-            .borrow_mut()
-            .pair
-            .as_mut()
-            .unwrap()
-            .push(Self::from_queue(Rc::downgrade(&self.0), input)?.0);
+        let fish = Self::from_queue(Some(&self), input)?;
+
+        if is_left && self.pair.borrow().left.is_none() {
+            self.pair.borrow_mut().left = Some(SnailFishElem::default());
+        } else if !is_left && self.pair.borrow().right.is_none() {
+            self.pair.borrow_mut().right = Some(SnailFishElem::default());
+        }
+
+        match is_left {
+            true => self.pair.borrow_mut().left.as_mut().unwrap().pair = Some(fish.pair),
+            false => self.pair.borrow_mut().right.as_mut().unwrap().pair = Some(fish.pair),
+        };
 
         Ok(())
     }
 
-    fn reduce(self) -> Self {
-        todo!()
-    }
-
-    fn explode(self) -> Self {
-        todo!()
+    fn reduce(self) -> Result<Self> {
+        Ok(Self::new(self.pair.take().reduce(0)?))
     }
 }
 
-fn part_one(fish: &[SnailFishNode]) -> usize {
-    todo!()
-}
+// fn part_one(fish: &[SnailFish]) -> usize {
+//     todo!()
+// }
 
-fn main() -> anyhow::Result<()> {
-    let mut fish = read_input()?;
+fn main() -> Result<()> {
+    let mut fish = util::read_input::<SnailFish>()?;
+    let two = fish.pop().unwrap();
+    let one = fish.pop().unwrap();
 
-    println!("{:?}", fish.pop().unwrap() + fish.pop().unwrap());
+    let fish = one + two;
 
-    println!("Part one: {}", part_one(&fish));
+    println!("{:?}", &fish);
+
+    // println!(
+    //     "{:?}",
+    //     fish.pair
+    //         .borrow()
+    //         .left
+    //         .as_ref()
+    //         .unwrap()
+    //         .pair
+    //         .as_ref()
+    //         .unwrap()
+    //         .borrow()
+    //         .parent
+    //         .upgrade()
+    //         .unwrap()
+    // );
 
     Ok(())
 }
