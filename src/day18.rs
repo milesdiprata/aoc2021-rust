@@ -60,6 +60,18 @@ impl SnailFishElem {
             pair: Some(pair),
         }
     }
+
+    fn reduce(self, depth: usize, is_reduced: &mut bool) -> Self {
+        match self.pair {
+            Some(pair) => Self {
+                pair: Some(Rc::new(RefCell::new(
+                    pair.take().reduce(depth + 1, is_reduced),
+                ))),
+                num: None,
+            },
+            None => self,
+        }
+    }
 }
 
 impl fmt::Debug for SnailFishNode {
@@ -92,31 +104,104 @@ impl Default for SnailFishNode {
 }
 
 impl SnailFishNode {
-    fn reduce(self, depth: usize) -> Result<Self> {
-        if depth == 4 {
-            return self.explode()?.reduce(depth + 1);
+    fn reduce(self, depth: usize, is_reduced: &mut bool) -> Self {
+        if *is_reduced {
+            self
+        } else if depth == 4 {
+            // TODO: Reduce after explode?
+            *is_reduced = true;
+            return self.explode();
+        } else {
+            println!("{:?}", self);
+
+            Self {
+                left: self.left.reduce(depth, is_reduced),
+                right: self.right.reduce(depth, is_reduced),
+                parent: self.parent,
+            }
         }
 
-        // if let Some(ref num) = self.num {
-        //     if let Some(&num) = num.iter().find(|&&num| num == 10) {
-        //         return self.split(num).reduce(depth + 1);
-        //     }
+        // if let Some(_) = self
+        //     .left
+        //     .pair
+        //     .as_ref()
+        //     .and_then(|left| left.borrow_mut().reduce(depth + 1))
+        // {
+        //     return Some(());
+        // } else if let Some(_) = self
+        //     .right
+        //     .pair
+        //     .as_ref()
+        //     .and_then(|right| right.borrow_mut().reduce(depth + 1))
+        // {
+        //     return Some(());
         // }
 
-        Ok(self)
+        // else if let Some(left_num) = self.left.num {
+        //     if left_num >= 10 {
+        //         self.split(left_num)?;
+        //     }
+        // } else if let Some(right_num) = self.right.num {
+        //     if right_num > 10 {
+        //         self.split(right_num)?;
+        //     }
+        // }
     }
 
-    fn explode(self) -> Result<Self> {
-        let parent = self
-            .parent
-            .upgrade()
-            .ok_or_else(|| anyhow!("Parent fish was dropped!"))?;
+    // Note: Exploding pairs will always consist of two regular numbers.
+    fn explode(self) -> Self {
+        println!("Exploding {:?}...", self);
 
-        todo!()
+        self
+
+        // let mut parent = self.parent.upgrade();
+        // let mut found_left = false;
+        // let mut found_right = false;
+
+        // parent.unwrap().borrow();
+
+        // todo!()
+
+        // while let Some(curr) = parent {
+        //     if let Some(ref mut left_num) = curr.borrow_mut().left.num {
+        //         if !found_left {
+        //             *left_num += self.left.num.unwrap();
+        //             found_left = true;
+        //         }
+        //     }
+
+        //     if let Some(ref mut right_num) = curr.borrow_mut().right.num {
+        //         if !found_right {
+        //             *right_num += self.right.num.unwrap();
+        //             found_right = true;
+        //         }
+        //     }
+
+        //     if found_left && found_right {
+        //         break;
+        //     }
+
+        //     parent = curr.borrow().parent.upgrade();
+        // }
+
+        // let parent = self.parent.upgrade().unwrap();
+
+        // if let Some(ref left) = parent.borrow().left.pair {
+        //     if let (Some(left), Some(right)) = (left.borrow().left.num, left.borrow().right.num) {
+        //         if left == self.left.num.unwrap() && right == self.right.num.unwrap() {
+        //             parent.borrow_mut().left = SnailFishElem::from_num(0);
+        //         }
+        //     }
+        // } else {
+        //     parent.borrow_mut().right = SnailFishElem::from_num(0);
+        // };
     }
 
     fn split(self, num: u8) -> Self {
-        todo!()
+        println!("Splitting {:?}...", self);
+        self
+        // Ok(())
+        // todo!()
     }
 }
 
@@ -161,10 +246,8 @@ impl Add for SnailFish {
 }
 
 impl SnailFish {
-    fn new(root: SnailFishNode) -> Self {
-        Self {
-            root: Rc::new(RefCell::new(root)),
-        }
+    fn new(root: Rc<RefCell<SnailFishNode>>) -> Self {
+        Self { root }
     }
 
     fn from_queue(parent: Option<&Self>, input: &mut VecDeque<char>) -> Result<Self> {
@@ -229,9 +312,11 @@ impl SnailFish {
         Ok(())
     }
 
-    // fn reduce(self) -> Result<Self> {
-    //     Ok(Self::new(self.root.take().reduce(0)?))
-    // }
+    fn reduce(self) -> Self {
+        Self::new(Rc::new(RefCell::new(
+            self.root.take().reduce(0, &mut false),
+        )))
+    }
 }
 
 // fn part_one(fish: &[SnailFish]) -> usize {
@@ -240,13 +325,10 @@ impl SnailFish {
 
 fn main() -> Result<()> {
     let mut fish = util::read_input::<SnailFish>()?;
-
-    let two = fish.pop().unwrap();
-    let one = fish.pop().unwrap();
-
-    let fish = one + two;
+    let fish = fish.pop().unwrap();
 
     println!("{:?}", &fish);
+    println!("{:?}", &fish.reduce());
 
     Ok(())
 }
