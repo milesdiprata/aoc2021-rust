@@ -1,28 +1,46 @@
+use core::fmt;
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::io::{self, BufRead};
+use std::ops::Add;
 use std::rc::{Rc, Weak};
 use std::str::FromStr;
 
 use anyhow::{anyhow, Error, Result};
 
-use aoc2021_rust::util;
-
-#[derive(Debug)]
 enum SnailFishElem {
     Num(u8),
     Pair(Rc<RefCell<SnailFishNode>>),
 }
 
-#[derive(Debug)]
 struct SnailFishNode {
     left: SnailFishElem,
     right: SnailFishElem,
     parent: Weak<RefCell<Self>>,
 }
 
-#[derive(Debug)]
 struct SnailFish(Rc<RefCell<SnailFishNode>>);
+
+impl fmt::Debug for SnailFishElem {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Num(num) => write!(fmt, "{}", num),
+            Self::Pair(pair) => write!(fmt, "{:?}", &pair.borrow()),
+        }
+    }
+}
+
+impl fmt::Debug for SnailFishNode {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(fmt, "[{:?},{:?}]", &self.left, &self.right)
+    }
+}
+
+impl fmt::Debug for SnailFish {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(fmt, "{:?}", &self.0.borrow())
+    }
+}
 
 impl Default for SnailFishElem {
     fn default() -> Self {
@@ -51,6 +69,18 @@ impl FromStr for SnailFish {
 
     fn from_str(str: &str) -> Result<Self> {
         Self::from_queue(Weak::new(), &mut str.chars().collect())
+    }
+}
+
+impl Add for SnailFish {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        let fish = Self::default();
+        let parent = fish.to_parent();
+
+        fish.with_left(self.with_parent(parent.clone()))
+            .with_right(rhs.with_parent(parent))
     }
 }
 
@@ -114,6 +144,20 @@ impl SnailFish {
         Self(self.0)
     }
 
+    fn with_left(self, left: Self) -> Self {
+        self.0.borrow_mut().left = SnailFishElem::Pair(left.0);
+        Self(self.0)
+    }
+
+    fn with_right(self, right: Self) -> Self {
+        self.0.borrow_mut().right = SnailFishElem::Pair(right.0);
+        Self(self.0)
+    }
+
+    fn to_parent(&self) -> Weak<RefCell<SnailFishNode>> {
+        Rc::downgrade(&self.0)
+    }
+
     fn parse_num(&self, num: char, is_left: bool) -> Result<()> {
         let num = SnailFishElem::Num(
             num.to_digit(10)
@@ -132,7 +176,7 @@ impl SnailFish {
     fn parse_pair(&self, input: &mut VecDeque<char>, is_left: bool) -> Result<()> {
         input.push_front('[');
 
-        let new_elem = SnailFishElem::Pair(Self::from_queue(Rc::downgrade(&self.0), input)?.0);
+        let new_elem = SnailFishElem::Pair(Self::from_queue(self.to_parent(), input)?.0);
 
         match is_left {
             true => self.0.borrow_mut().left = new_elem,
@@ -144,11 +188,10 @@ impl SnailFish {
 
 fn main() -> Result<()> {
     let mut fish = SnailFish::from_stdin()?;
-    println!("{:?}", fish.pop().unwrap());
+    let two = fish.pop().unwrap();
+    let one = fish.pop().unwrap();
 
-    // if let SnailFishElem::Pair(pair) = &fish.pop().unwrap().0.borrow().left {
-    //     println!("{:?}", pair.borrow().parent.upgrade());
-    // }
+    let add = one + two;
 
     Ok(())
 }
