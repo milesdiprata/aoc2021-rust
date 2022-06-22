@@ -10,7 +10,7 @@ use std::str::FromStr;
 use anyhow::{anyhow, Error, Result};
 
 enum SnailFishElem {
-    Num(Rc<RefCell<u8>>),
+    Num(Rc<RefCell<usize>>),
     Pair(Rc<RefCell<SnailFishNode>>),
 }
 
@@ -105,10 +105,13 @@ impl Add for SnailFish {
         let fish = Self::default();
         let parent = fish.to_parent();
 
-        let left = self.with_parent(parent.clone()).reduce().unwrap();
-        let right = rhs.with_parent(parent).reduce().unwrap();
+        let left = self.with_parent(parent.clone()).into_reduced().unwrap();
+        let right = rhs.with_parent(parent).into_reduced().unwrap();
 
-        fish.with_left(left).with_right(right).reduce().unwrap()
+        fish.with_left(left)
+            .with_right(right)
+            .into_reduced()
+            .unwrap()
     }
 }
 
@@ -136,7 +139,7 @@ impl SnailFishElem {
         }
     }
 
-    fn peek_num(&self) -> &Rc<RefCell<u8>> {
+    fn peek_num(&self) -> &Rc<RefCell<usize>> {
         match self {
             SnailFishElem::Num(num) => num,
             SnailFishElem::Pair(_) => panic!("SnailFishElem is not a number!"),
@@ -235,7 +238,7 @@ impl SnailFish {
     fn parse_num(&self, num: char, is_left: bool) -> Result<()> {
         let num = SnailFishElem::Num(Rc::new(RefCell::new(
             num.to_digit(10)
-                .map(|num| num as u8)
+                .map(|num| num as usize)
                 .ok_or_else(|| anyhow!("Failed to parse num!"))?,
         )));
 
@@ -260,7 +263,7 @@ impl SnailFish {
         Ok(())
     }
 
-    fn reduce(self) -> Result<Self> {
+    fn into_reduced(self) -> Result<Self> {
         loop {
             if let Some(node) = self.find_exploded(&self.0, 0, &mut false)? {
                 self.explode_node(&node)?;
@@ -340,13 +343,13 @@ impl SnailFish {
         &self,
         node: &Rc<RefCell<SnailFishNode>>,
         is_left: bool,
-    ) -> Option<Rc<RefCell<u8>>> {
+    ) -> Option<Rc<RefCell<usize>>> {
         let num = match is_left {
             true => node.borrow().left.peek_num().clone(),
             false => node.borrow().right.peek_num().clone(),
         };
 
-        let flat = self.to_vec();
+        let flat = self.to_sorted_vec();
         let idx = flat
             .iter()
             .enumerate()
@@ -364,6 +367,20 @@ impl SnailFish {
         };
 
         Some(num.clone())
+    }
+
+    fn to_sorted_vec(&self) -> Vec<Rc<RefCell<usize>>> {
+        let mut vec = vec![];
+        Self::in_order_nums(&self.0, &mut vec);
+
+        vec
+    }
+
+    fn to_magnitude(&self) -> usize {
+        let mut magnitude = 0;
+        Self::in_order_magnitude(&self.0, 1, &mut magnitude);
+
+        magnitude
     }
 
     fn find_split(node: &Rc<RefCell<SnailFishNode>>) -> Option<(Rc<RefCell<SnailFishNode>>, bool)> {
@@ -413,8 +430,8 @@ impl SnailFish {
         let fish = Self::default().with_parent(Rc::downgrade(node));
         let num = num as f32 / 2.0;
 
-        fish.0.borrow_mut().left = SnailFishElem::Num(Rc::new(RefCell::new(num.floor() as u8)));
-        fish.0.borrow_mut().right = SnailFishElem::Num(Rc::new(RefCell::new(num.ceil() as u8)));
+        fish.0.borrow_mut().left = SnailFishElem::Num(Rc::new(RefCell::new(num.floor() as usize)));
+        fish.0.borrow_mut().right = SnailFishElem::Num(Rc::new(RefCell::new(num.ceil() as usize)));
 
         match is_left {
             true => node.borrow_mut().left = SnailFishElem::Pair(fish.0),
@@ -424,34 +441,49 @@ impl SnailFish {
         Ok(())
     }
 
-    fn to_vec(&self) -> Vec<Rc<RefCell<u8>>> {
-        let mut vec = vec![];
-        Self::in_order(&self.0, &mut vec);
-
-        vec
-    }
-
-    fn in_order(node: &Rc<RefCell<SnailFishNode>>, vec: &mut Vec<Rc<RefCell<u8>>>) -> () {
+    fn in_order_nums(node: &Rc<RefCell<SnailFishNode>>, nums: &mut Vec<Rc<RefCell<usize>>>) -> () {
         if let SnailFishElem::Pair(left) = &node.borrow().left {
-            Self::in_order(left, vec);
+            Self::in_order_nums(left, nums);
         }
 
         if let SnailFishElem::Num(num) = &node.borrow().left {
-            vec.push(num.clone());
+            nums.push(num.clone());
         }
 
         if let SnailFishElem::Num(num) = &node.borrow().right {
-            vec.push(num.clone());
+            nums.push(num.clone());
         }
 
         if let SnailFishElem::Pair(right) = &node.borrow().right {
-            Self::in_order(right, vec);
+            Self::in_order_nums(right, nums);
+        }
+    }
+
+    fn in_order_magnitude(
+        node: &Rc<RefCell<SnailFishNode>>,
+        multi: usize,
+        magnitude: &mut usize,
+    ) -> () {
+        if let SnailFishElem::Pair(left) = &node.borrow().left {
+            Self::in_order_magnitude(left, multi * 3, magnitude);
+        }
+
+        if let SnailFishElem::Num(num) = &node.borrow().left {
+            *magnitude += 3 * multi * *num.borrow();
+        }
+
+        if let SnailFishElem::Num(num) = &node.borrow().right {
+            *magnitude += 2 * multi * *num.borrow();
+        }
+
+        if let SnailFishElem::Pair(right) = &node.borrow().right {
+            Self::in_order_magnitude(right, multi * 2, magnitude);
         }
     }
 }
 
 fn main() -> Result<()> {
-    let fish = SnailFish::from_stdin()?;
+    let fish = SnailFish::from_stdin()?.to_magnitude();
 
     println!("{:?}", &fish);
 
