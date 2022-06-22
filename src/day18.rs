@@ -1,7 +1,8 @@
 use core::fmt;
 use std::cell::RefCell;
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::io::{self, BufRead};
+use std::iter::Sum;
 use std::ops::Add;
 use std::rc::{Rc, Weak};
 use std::str::FromStr;
@@ -104,8 +105,19 @@ impl Add for SnailFish {
         let fish = Self::default();
         let parent = fish.to_parent();
 
-        fish.with_left(self.with_parent(parent.clone()))
-            .with_right(rhs.with_parent(parent))
+        let left = self.with_parent(parent.clone()).reduce().unwrap();
+        let right = rhs.with_parent(parent).reduce().unwrap();
+
+        fish.with_left(left).with_right(right).reduce().unwrap()
+    }
+}
+
+impl Sum for SnailFish {
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        let mut iter = iter;
+        let acc = iter.next().unwrap();
+
+        iter.fold(acc, |acc, fish| acc + fish)
     }
 }
 
@@ -140,7 +152,7 @@ impl SnailFishElem {
 }
 
 impl SnailFish {
-    fn from_stdin() -> Result<Vec<Self>> {
+    fn from_stdin() -> Result<Self> {
         let stdin = io::stdin();
         let mut lines = stdin.lock().lines();
         let mut input = vec![];
@@ -153,10 +165,14 @@ impl SnailFish {
             input.push(line);
         }
 
-        input
+        let fish = input
             .into_iter()
             .map(|fish| fish.parse())
-            .collect::<Result<_>>()
+            .collect::<Result<Vec<_>>>()?
+            .into_iter()
+            .sum();
+
+        Ok(fish)
     }
 
     fn from_queue(
@@ -244,12 +260,18 @@ impl SnailFish {
         Ok(())
     }
 
-    fn reduce(&self) -> Result<()> {
-        if let Some(node) = self.find_exploded(&self.0, 0, &mut false)? {
-            self.explode_node(&node)?;
+    fn reduce(self) -> Result<Self> {
+        loop {
+            if let Some(node) = self.find_exploded(&self.0, 0, &mut false)? {
+                self.explode_node(&node)?;
+            } else if let Some((node, is_left)) = Self::find_split(&self.0) {
+                Self::split_node(&node, is_left)?;
+            } else {
+                break;
+            }
         }
 
-        Ok(())
+        Ok(self)
     }
 
     fn find_exploded(
@@ -319,80 +341,117 @@ impl SnailFish {
         node: &Rc<RefCell<SnailFishNode>>,
         is_left: bool,
     ) -> Option<Rc<RefCell<u8>>> {
-        let mut parent = node
-            .borrow()
-            .parent
-            .as_ref()
-            .and_then(|parent| parent.upgrade());
-
-        let is_most = {
-            let mut curr = self.0.clone();
-
-            match is_left {
-                true => {
-                    while curr.borrow().left.is_pair() {
-                        let tmp = curr.borrow().left.peek_pair().clone();
-                        curr = tmp;
-                    }
-                }
-                false => {
-                    while curr.borrow().right.is_pair() {
-                        let tmp = curr.borrow().right.peek_pair().clone();
-                        curr = tmp;
-                    }
-                }
-            }
-
-            let is_most = &*curr.borrow() == &*node.borrow();
-            is_most
+        let num = match is_left {
+            true => node.borrow().left.peek_num().clone(),
+            false => node.borrow().right.peek_num().clone(),
         };
 
-        while let Some(curr_parent) = parent {
-            match is_left {
-                true => {
-                    if let SnailFishElem::Num(num) = &curr_parent.borrow().left {
-                        return Some(num.clone());
-                    } else if !is_most && curr_parent.borrow().parent.is_none() {
-                        let mut curr = curr_parent.borrow().left.peek_pair().clone();
+        let flat = self.to_vec();
+        let idx = flat
+            .iter()
+            .enumerate()
+            .find(|&(_, flat_num)| flat_num.as_ptr() == num.as_ptr())
+            .map(|(idx, _)| idx)
+            .unwrap();
 
-                        while curr.borrow().right.is_pair() {
-                            let tmp = curr.borrow().right.peek_pair().clone();
-                            curr = tmp;
-                        }
+        if idx == 0 || idx == flat.len() - 1 {
+            return None;
+        }
 
-                        return Some(curr.borrow().right.peek_num().clone());
-                    }
-                }
-                false => {
-                    if let SnailFishElem::Num(num) = &curr_parent.borrow().right {
-                        return Some(num.clone());
-                    } else if !is_most && curr_parent.borrow().parent.is_none() {
-                        let mut curr = curr_parent.borrow().right.peek_pair().clone();
+        let num = match is_left {
+            true => &flat[idx - 1],
+            false => &flat[idx + 1],
+        };
 
-                        while curr.borrow().left.is_pair() {
-                            let tmp = curr.borrow().left.peek_pair().clone();
-                            curr = tmp;
-                        }
+        Some(num.clone())
+    }
 
-                        return Some(curr.borrow().left.peek_num().clone());
-                    }
-                }
+    fn find_split(node: &Rc<RefCell<SnailFishNode>>) -> Option<(Rc<RefCell<SnailFishNode>>, bool)> {
+        if let SnailFishElem::Pair(node) = &node.borrow().left {
+            if let Some((node, is_left)) = Self::find_split(node) {
+                return Some((node, is_left));
             }
+        }
 
-            parent = curr_parent
-                .borrow()
-                .parent
-                .as_ref()
-                .and_then(|parent| parent.upgrade());
+        if let SnailFishElem::Num(num) = &node.borrow().left {
+            if *num.borrow() >= 10 {
+                return Some((node.clone(), true));
+            }
+        }
+
+        if let SnailFishElem::Num(num) = &node.borrow().right {
+            if *num.borrow() >= 10 {
+                return Some((node.clone(), false));
+            }
+        }
+
+        if let SnailFishElem::Pair(node) = &node.borrow().right {
+            if let Some((node, is_left)) = Self::find_split(node) {
+                return Some((node, is_left));
+            }
         }
 
         None
     }
+
+    fn split_node(node: &Rc<RefCell<SnailFishNode>>, is_left: bool) -> Result<()> {
+        let num = match is_left {
+            true => match &node.borrow().left {
+                SnailFishElem::Num(num) => *num.borrow(),
+                SnailFishElem::Pair(_) => {
+                    return Err(anyhow!("Split pair does not contain a number!"))
+                }
+            },
+            false => match &node.borrow().right {
+                SnailFishElem::Num(num) => *num.borrow(),
+                SnailFishElem::Pair(_) => {
+                    return Err(anyhow!("Split pair does not contain a number!"))
+                }
+            },
+        };
+
+        let fish = Self::default().with_parent(Rc::downgrade(node));
+        let num = num as f32 / 2.0;
+
+        fish.0.borrow_mut().left = SnailFishElem::Num(Rc::new(RefCell::new(num.floor() as u8)));
+        fish.0.borrow_mut().right = SnailFishElem::Num(Rc::new(RefCell::new(num.ceil() as u8)));
+
+        match is_left {
+            true => node.borrow_mut().left = SnailFishElem::Pair(fish.0),
+            false => node.borrow_mut().right = SnailFishElem::Pair(fish.0),
+        };
+
+        Ok(())
+    }
+
+    fn to_vec(&self) -> Vec<Rc<RefCell<u8>>> {
+        let mut vec = vec![];
+        Self::in_order(&self.0, &mut vec);
+
+        vec
+    }
+
+    fn in_order(node: &Rc<RefCell<SnailFishNode>>, vec: &mut Vec<Rc<RefCell<u8>>>) -> () {
+        if let SnailFishElem::Pair(left) = &node.borrow().left {
+            Self::in_order(left, vec);
+        }
+
+        if let SnailFishElem::Num(num) = &node.borrow().left {
+            vec.push(num.clone());
+        }
+
+        if let SnailFishElem::Num(num) = &node.borrow().right {
+            vec.push(num.clone());
+        }
+
+        if let SnailFishElem::Pair(right) = &node.borrow().right {
+            Self::in_order(right, vec);
+        }
+    }
 }
 
 fn main() -> Result<()> {
-    let fish = SnailFish::from_stdin()?.pop().unwrap();
-    fish.reduce()?;
+    let fish = SnailFish::from_stdin()?;
 
     println!("{:?}", &fish);
 
