@@ -26,7 +26,7 @@ fn part_one(lines: &[String]) -> usize {
 
     lines
         .iter()
-        .map(|line| {
+        .filter_map(|line| {
             let mut closing_parens = vec![];
 
             line.chars().find(|&c| {
@@ -46,7 +46,6 @@ fn part_one(lines: &[String]) -> usize {
                 false
             })
         })
-        .flatten()
         .map(|illegal_paren| illegal_paren_scores[&illegal_paren])
         .map(|score| score as usize)
         .sum()
@@ -58,7 +57,7 @@ fn part_two(lines: &[String]) -> usize {
 
     let mut completion_scores = lines
         .iter()
-        .map(|line| {
+        .filter_map(|line| {
             let mut closing_parens = Some(vec![]);
 
             line.chars().for_each(|c| {
@@ -85,7 +84,6 @@ fn part_two(lines: &[String]) -> usize {
 
             closing_parens
         })
-        .flatten()
         .map(|closing_parens| String::from_iter(closing_parens.into_iter().rev()))
         .map(|completion_str| {
             let mut score = 0usize;
@@ -99,7 +97,7 @@ fn part_two(lines: &[String]) -> usize {
         })
         .collect::<Vec<_>>();
 
-    completion_scores.sort();
+    completion_scores.sort_unstable();
 
     completion_scores[completion_scores.len() / 2]
 }

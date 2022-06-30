@@ -59,8 +59,7 @@ fn part_one(diagnostic_report: &[BinNo]) -> anyhow::Result<usize> {
             .iter()
             .map(|report| report.0[i])
             .filter(|&bit| bit == 0)
-            .collect::<Vec<_>>()
-            .len();
+            .count();
 
         if num_zeros > report_len - num_zeros {
             gamma_rate.0[i] = 0;
@@ -80,8 +79,8 @@ fn part_two(diagnostic_report: &[BinNo]) -> anyhow::Result<usize> {
         .map(|report| report.0.len())
         .ok_or_else(|| anyhow::anyhow!("Unexpected empty diagnostic report!"))?;
 
-    let mut o2_rating = diagnostic_report.iter().cloned().collect::<Vec<_>>();
-    let mut co2_rating = diagnostic_report.iter().cloned().collect::<Vec<_>>();
+    let mut o2_rating = diagnostic_report.to_vec();
+    let mut co2_rating = diagnostic_report.to_vec();
 
     (0..bin_no_len).for_each(|i| {
         filter_rating(&mut o2_rating, i, true);
@@ -100,7 +99,7 @@ fn part_two(diagnostic_report: &[BinNo]) -> anyhow::Result<usize> {
             .into_decimal()?)
 }
 
-fn filter_rating(report: &mut Vec<BinNo>, bit_idx: usize, most_common_bit: bool) -> () {
+fn filter_rating(report: &mut Vec<BinNo>, bit_idx: usize, most_common_bit: bool) {
     let report_len = report.len();
 
     if report_len == 1 {
@@ -111,8 +110,7 @@ fn filter_rating(report: &mut Vec<BinNo>, bit_idx: usize, most_common_bit: bool)
         .iter()
         .map(|report| report.0[bit_idx])
         .filter(|&bit| bit == 0)
-        .collect::<Vec<_>>()
-        .len();
+        .count();
 
     let bit = if num_zeros > report_len - num_zeros {
         if most_common_bit {
@@ -120,12 +118,10 @@ fn filter_rating(report: &mut Vec<BinNo>, bit_idx: usize, most_common_bit: bool)
         } else {
             1
         }
+    } else if most_common_bit {
+        1
     } else {
-        if most_common_bit {
-            1
-        } else {
-            0
-        }
+        0
     };
 
     *report = report

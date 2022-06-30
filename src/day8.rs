@@ -62,8 +62,7 @@ fn part_one(sigs: &[Sig]) -> usize {
                 .iter()
                 .filter(|&output| unique_dig_sig_lens.contains(&output.len()))
         })
-        .collect::<Vec<_>>()
-        .len()
+        .count()
 }
 
 fn part_two(sigs: &[Sig]) -> usize {

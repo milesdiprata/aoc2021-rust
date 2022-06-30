@@ -79,7 +79,7 @@ fn read_board() -> anyhow::Result<Board> {
 
                 Ok(line
                     .split_whitespace()
-                    .map(|num| u8::from_str_radix(num, 10))
+                    .map(|num| num.parse::<u8>())
                     .collect::<Result<Vec<_>, _>>())
             })
         })
@@ -149,8 +149,10 @@ fn part_two(nums: &[u8], mut boards: Vec<Board>) -> anyhow::Result<u32> {
 
                 boards.retain(|board| !board.is_winner());
 
-                if boards.is_empty() && last_winner.is_some() {
-                    return Ok(last_winner.unwrap().get_score(num));
+                if boards.is_empty() {
+                    if let Some(last_winner) = last_winner {
+                        return Ok(last_winner.get_score(num));
+                    }
                 }
             }
             None => return Err(anyhow::anyhow!("No winner!")),

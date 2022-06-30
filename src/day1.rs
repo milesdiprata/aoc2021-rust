@@ -17,8 +17,7 @@ fn part_one(depths: &[isize]) -> anyhow::Result<usize> {
     Ok(depths
         .windows(PART_ONE_WINDOW_LEN)
         .filter(|&window| window[0] < window[1])
-        .collect::<Vec<_>>()
-        .len())
+        .count())
 }
 
 fn part_two(depths: &[isize]) -> anyhow::Result<usize> {
@@ -36,8 +35,7 @@ fn part_two(depths: &[isize]) -> anyhow::Result<usize> {
         .collect::<Vec<_>>()
         .windows(PART_ONE_WINDOW_LEN)
         .filter(|&window| window[0] < window[1])
-        .collect::<Vec<_>>()
-        .len())
+        .count())
 }
 
 fn main() -> anyhow::Result<()> {

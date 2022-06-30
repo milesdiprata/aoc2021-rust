@@ -27,11 +27,7 @@ impl str::FromStr for FishSchool {
                 .map(|state| {
                     (
                         state,
-                        timers
-                            .iter()
-                            .filter(|&&timer| timer == state)
-                            .collect::<Vec<_>>()
-                            .len(),
+                        timers.iter().filter(|&&timer| timer == state).count(),
                     )
                 })
                 .collect(),
@@ -46,7 +42,7 @@ impl FishSchool {
         self.num_timers.values().sum()
     }
 
-    fn simulate_day(&mut self) -> () {
+    fn simulate_day(&mut self) {
         let mut num_timers = collections::HashMap::new();
 
         self.num_timers.iter().for_each(|(&state, &num_timer)| {

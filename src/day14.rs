@@ -68,16 +68,13 @@ fn part_one(manual: &Manual) -> usize {
     let mut polymer = manual.template.clone();
 
     (0..NUM_STEPS).for_each(|_| {
-        let pairs = polymer
-            .iter()
-            .enumerate()
-            .collect::<Vec<_>>()
+        let pairs = polymer.iter().enumerate().collect::<Vec<_>>();
+
+        pairs
             .windows(2)
             .map(|pair| ([*pair[0].1, *pair[1].1], pair[1].0))
             .filter(|(pair, _)| manual.insert_rules.contains_key(pair))
-            .collect::<Vec<_>>();
-
-        pairs
+            .collect::<Vec<_>>()
             .into_iter()
             .enumerate()
             .for_each(|(i, (pair, idx))| polymer.insert(idx + i, manual.insert_rules[&pair]));

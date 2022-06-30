@@ -14,12 +14,14 @@ enum SnailFishElem {
     Pair(Rc<RefCell<SnailFishNode>>),
 }
 
+#[derive(Default)]
 struct SnailFishNode {
     left: SnailFishElem,
     right: SnailFishElem,
     parent: Option<Weak<RefCell<Self>>>,
 }
 
+#[derive(Default)]
 struct SnailFish(Rc<RefCell<SnailFishNode>>);
 
 impl fmt::Debug for SnailFishElem {
@@ -46,22 +48,6 @@ impl fmt::Debug for SnailFish {
 impl Default for SnailFishElem {
     fn default() -> Self {
         Self::Num(Rc::new(RefCell::new(0)))
-    }
-}
-
-impl Default for SnailFishNode {
-    fn default() -> Self {
-        Self {
-            left: SnailFishElem::default(),
-            right: SnailFishElem::default(),
-            parent: None,
-        }
-    }
-}
-
-impl Default for SnailFish {
-    fn default() -> Self {
-        Self(Rc::default())
     }
 }
 
@@ -298,7 +284,7 @@ impl SnailFish {
             .unwrap();
 
         let is_left_child = if let SnailFishElem::Pair(left) = &parent.borrow().left {
-            &*left.borrow() == &*node.borrow()
+            *left.borrow() == *node.borrow()
         } else {
             false
         };
@@ -423,7 +409,7 @@ impl SnailFish {
         Ok(())
     }
 
-    fn in_order_nums(node: &Rc<RefCell<SnailFishNode>>, nums: &mut Vec<Rc<RefCell<usize>>>) -> () {
+    fn in_order_nums(node: &Rc<RefCell<SnailFishNode>>, nums: &mut Vec<Rc<RefCell<usize>>>) {
         if let SnailFishElem::Pair(left) = &node.borrow().left {
             Self::in_order_nums(left, nums);
         }
@@ -441,11 +427,7 @@ impl SnailFish {
         }
     }
 
-    fn in_order_magnitude(
-        node: &Rc<RefCell<SnailFishNode>>,
-        multi: usize,
-        magnitude: &mut usize,
-    ) -> () {
+    fn in_order_magnitude(node: &Rc<RefCell<SnailFishNode>>, multi: usize, magnitude: &mut usize) {
         if let SnailFishElem::Pair(left) = &node.borrow().left {
             Self::in_order_magnitude(left, multi * 3, magnitude);
         }

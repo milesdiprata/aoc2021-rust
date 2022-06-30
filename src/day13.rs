@@ -71,7 +71,7 @@ impl Manual {
 
         Manual {
             points,
-            folds: folds.collect::<Vec<_>>(),
+            folds: folds.collect(),
         }
     }
 
@@ -79,7 +79,7 @@ impl Manual {
         let mut points = self.points;
         let mut folds = self.folds.into_iter();
 
-        while let Some(fold) = folds.next() {
+        for fold in folds.by_ref() {
             points = if fold.axis == Axis::X {
                 Self::fold_x_axis(points, fold.line)
             } else {
@@ -89,7 +89,7 @@ impl Manual {
 
         Manual {
             points,
-            folds: folds.collect::<Vec<_>>(),
+            folds: folds.collect(),
         }
     }
 

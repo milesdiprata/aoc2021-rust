@@ -68,7 +68,7 @@ impl Position {
         }
     }
 
-    fn update(&mut self, command: &Command) -> () {
+    fn update(&mut self, command: &Command) {
         match command.direction {
             Direction::Forward => self.pos += command.units,
             Direction::Up => self.depth -= command.units,
@@ -76,7 +76,7 @@ impl Position {
         }
     }
 
-    fn update_with_aim(&mut self, command: &Command) -> () {
+    fn update_with_aim(&mut self, command: &Command) {
         match command.direction {
             Direction::Forward => {
                 self.pos += command.units;

@@ -4,6 +4,7 @@ use std::cmp;
 use std::io::{self, BufRead};
 use std::ops;
 
+#[allow(dead_code)]
 struct Area {
     x_rng: ops::RangeInclusive<isize>,
     y_rng: ops::RangeInclusive<isize>,
@@ -78,11 +79,11 @@ fn trick_shot(mut vel: (isize, isize), area: &Area) -> bool {
         pos.0 += vel.0;
         pos.1 += vel.1;
 
-        if vel.0 > 0 {
-            vel.0 -= 1;
-        } else if vel.0 < 0 {
-            vel.0 += 1;
-        }
+        match &mut vel.0 {
+            vel if *vel > 0 => *vel -= 1,
+            vel if *vel < 0 => *vel += 1,
+            _ => {}
+        };
 
         vel.1 -= 1;
     }
@@ -103,8 +104,7 @@ fn part_two(area: &Area) -> usize {
     (0..=area.x_max)
         .flat_map(|x_vel| (-y_abs_max..=y_abs_max).map(move |y_vel| (x_vel, y_vel)))
         .filter(|&vel| trick_shot(vel, area))
-        .collect::<Vec<_>>()
-        .len()
+        .count()
 }
 
 fn main() -> anyhow::Result<()> {

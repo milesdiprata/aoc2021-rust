@@ -91,8 +91,7 @@ fn part_one(lines: &[Line]) -> anyhow::Result<usize> {
     Ok(coord_count
         .into_iter()
         .filter(|&(_, count)| count > 1)
-        .collect::<Vec<_>>()
-        .len())
+        .count())
 }
 
 fn part_two(lines: &[Line]) -> anyhow::Result<usize> {
@@ -107,8 +106,7 @@ fn part_two(lines: &[Line]) -> anyhow::Result<usize> {
     Ok(coord_count
         .into_iter()
         .filter(|&(_, count)| count > 1)
-        .collect::<Vec<_>>()
-        .len())
+        .count())
 }
 
 fn main() -> anyhow::Result<()> {

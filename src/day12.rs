@@ -41,7 +41,7 @@ fn find_all_paths(
     cave: &str,
     small_visited: &mut collections::HashSet<String>,
     num_paths: &mut usize,
-) -> () {
+) {
     if cave.chars().all(|c| c.is_lowercase()) {
         small_visited.insert(cave.to_owned());
     }

@@ -237,8 +237,8 @@ impl Pkt {
             match self.hdr.type_id {
                 TypeId::Sum => Some(iter.sum()),
                 TypeId::Product => Some(iter.product()),
-                TypeId::Min => iter.min().map(|&val| val),
-                TypeId::Max => iter.max().map(|&val| val),
+                TypeId::Min => iter.min().copied(),
+                TypeId::Max => iter.max().copied(),
                 TypeId::LiteralVal => None,
                 TypeId::GtThan => match sub_pkts_val[0] > sub_pkts_val[1] {
                     true => Some(1),
@@ -282,11 +282,10 @@ fn part_two(pkt: &Pkt) -> anyhow::Result<usize> {
 
 fn main() -> anyhow::Result<()> {
     let mut bin = env::args()
-        .skip(1)
-        .next()
+        .nth(1)
         .ok_or_else(|| anyhow::anyhow!("Hexadecimal input missing!"))?
         .chars()
-        .map(|hex| hex_to_bin(hex))
+        .map(hex_to_bin)
         .map(|bin| {
             bin.ok_or_else(|| anyhow::anyhow!("Failed to parse hexadecimal input to binary!"))
         })
